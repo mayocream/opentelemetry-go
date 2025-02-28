@@ -1,30 +1,18 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// SPDX-License-Identifier: Apache-2.0
 
 package trace
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"go.opentelemetry.io/otel/attribute"
-	ottest "go.opentelemetry.io/otel/internal/internaltest"
 	"go.opentelemetry.io/otel/sdk/internal/env"
+	ottest "go.opentelemetry.io/otel/sdk/internal/internaltest"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -126,7 +114,7 @@ func TestSettingSpanLimits(t *testing.T) {
 				t.Cleanup(func() { require.NoError(t, es.Restore()) })
 				for k, v := range test.env {
 					es.Record(k)
-					require.NoError(t, os.Setenv(k, v))
+					t.Setenv(k, v)
 				}
 			}
 
@@ -168,6 +156,7 @@ func testSpanLimits(t *testing.T, limits SpanLimits) ReadOnlySpan {
 	span.SetAttributes(
 		attribute.String("string", "abc"),
 		attribute.StringSlice("stringSlice", []string{"abc", "def"}),
+		attribute.String("euro", "€"), // this is a 3-byte rune
 	)
 	span.AddEvent("event 1", trace.WithAttributes(a...))
 	span.AddEvent("event 2", trace.WithAttributes(a...))
@@ -186,31 +175,34 @@ func TestSpanLimits(t *testing.T) {
 		attrs := testSpanLimits(t, limits).Attributes()
 		assert.Contains(t, attrs, attribute.String("string", "abc"))
 		assert.Contains(t, attrs, attribute.StringSlice("stringSlice", []string{"abc", "def"}))
+		assert.Contains(t, attrs, attribute.String("euro", "€"))
 
 		limits.AttributeValueLengthLimit = 2
 		attrs = testSpanLimits(t, limits).Attributes()
 		// Ensure string and string slice attributes are truncated.
 		assert.Contains(t, attrs, attribute.String("string", "ab"))
 		assert.Contains(t, attrs, attribute.StringSlice("stringSlice", []string{"ab", "de"}))
+		assert.Contains(t, attrs, attribute.String("euro", "€"))
 
 		limits.AttributeValueLengthLimit = 0
 		attrs = testSpanLimits(t, limits).Attributes()
 		assert.Contains(t, attrs, attribute.String("string", ""))
 		assert.Contains(t, attrs, attribute.StringSlice("stringSlice", []string{"", ""}))
+		assert.Contains(t, attrs, attribute.String("euro", ""))
 	})
 
 	t.Run("AttributeCountLimit", func(t *testing.T) {
 		limits := NewSpanLimits()
 		// Unlimited.
 		limits.AttributeCountLimit = -1
-		assert.Len(t, testSpanLimits(t, limits).Attributes(), 2)
+		assert.Len(t, testSpanLimits(t, limits).Attributes(), 3)
 
 		limits.AttributeCountLimit = 1
 		assert.Len(t, testSpanLimits(t, limits).Attributes(), 1)
 
 		// Ensure this can be disabled.
 		limits.AttributeCountLimit = 0
-		assert.Len(t, testSpanLimits(t, limits).Attributes(), 0)
+		assert.Empty(t, testSpanLimits(t, limits).Attributes())
 	})
 
 	t.Run("EventCountLimit", func(t *testing.T) {
@@ -224,7 +216,7 @@ func TestSpanLimits(t *testing.T) {
 
 		// Ensure this can be disabled.
 		limits.EventCountLimit = 0
-		assert.Len(t, testSpanLimits(t, limits).Events(), 0)
+		assert.Empty(t, testSpanLimits(t, limits).Events())
 	})
 
 	t.Run("AttributePerEventCountLimit", func(t *testing.T) {
@@ -243,7 +235,7 @@ func TestSpanLimits(t *testing.T) {
 		// Ensure this can be disabled.
 		limits.AttributePerEventCountLimit = 0
 		for _, e := range testSpanLimits(t, limits).Events() {
-			assert.Len(t, e.Attributes, 0)
+			assert.Empty(t, e.Attributes)
 		}
 	})
 
@@ -258,7 +250,7 @@ func TestSpanLimits(t *testing.T) {
 
 		// Ensure this can be disabled.
 		limits.LinkCountLimit = 0
-		assert.Len(t, testSpanLimits(t, limits).Links(), 0)
+		assert.Empty(t, testSpanLimits(t, limits).Links())
 	})
 
 	t.Run("AttributePerLinkCountLimit", func(t *testing.T) {
@@ -277,7 +269,7 @@ func TestSpanLimits(t *testing.T) {
 		// Ensure this can be disabled.
 		limits.AttributePerLinkCountLimit = 0
 		for _, l := range testSpanLimits(t, limits).Links() {
-			assert.Len(t, l.Attributes, 0)
+			assert.Empty(t, l.Attributes)
 		}
 	})
 }

@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+# Declare default permissions as read only.
+permissions: read-all
+
 jobs:
   changedfiles:
     name: changed files
@@ -12,13 +15,13 @@ jobs:
       md: ${{ steps.changes.outputs.md }}
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
       - name: Get changed files
         id: changes
         run: |
-          echo "::set-output name=md::$(git diff --name-only --diff-filter=ACMRTUXB origin/${{ github.event.pull_request.base.ref }} ${{ github.event.pull_request.head.sha }} | grep .md$ | xargs)"
+          echo "md=$(git diff --name-only --diff-filter=ACMRTUXB origin/${{ github.event.pull_request.base.ref }} ${{ github.event.pull_request.head.sha }} | grep .md$ | xargs)" >> $GITHUB_OUTPUT
 
   lint:
     name: lint markdown files
@@ -27,8 +30,8 @@ jobs:
     if: ${{needs.changedfiles.outputs.md}}
     steps:
     - name: Checkout Repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
     - name: Run linter
-      uses: docker://avtodev/markdown-lint:v1
+      uses: docker://avtodev/markdown-lint:v1@sha256:6aeedc2f49138ce7a1cd0adffc1b1c0321b841dc2102408967d9301c031949ee
       with:
         args: ${{needs.changedfiles.outputs.md}}
